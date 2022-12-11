@@ -2129,14 +2129,23 @@ static AccessPath *CreateHashJoinAccessPath(
     case JoinType::ANTI:
       expr->type = RelationalExpression::ANTIJOIN;
       break;
+    case JoinType::RIGHTANTI:
+      expr->type = RelationalExpression::RIGHT_ANTI;
+      break;
     case JoinType::INNER:
       expr->type = RelationalExpression::INNER_JOIN;
       break;
     case JoinType::OUTER:
       expr->type = RelationalExpression::LEFT_JOIN;
       break;
+    case JoinType::RIGHT:
+      expr->type = RelationalExpression::RIGHT_JOIN;
+      break;
     case JoinType::SEMI:
       expr->type = RelationalExpression::SEMIJOIN;
+      break;
+    case JoinType::RIGHTSEMI:
+      expr->type = RelationalExpression::RIGHT_SEMI;
       break;
     case JoinType::FULL_OUTER:
       expr->type = RelationalExpression::FULL_OUTER_JOIN;

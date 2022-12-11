@@ -358,6 +358,18 @@ void ComputeCompanionSets(RelationalExpression *expr, int current_set,
       ComputeCompanionSets(expr->right, /*current_set=*/-1, num_companion_sets,
                            table_num_to_companion_set);
       break;
+    case RelationalExpression::RIGHT_JOIN:
+    case RelationalExpression::RIGHT_SEMI:
+    case RelationalExpression::RIGHT_ANTI:
+      if (current_set == -1) {
+        // Start a new set.
+        current_set = (*num_companion_sets)++;
+      }
+      ComputeCompanionSets(expr->right, current_set, num_companion_sets,
+                           table_num_to_companion_set);
+      ComputeCompanionSets(expr->left, /*current_set=*/-1, num_companion_sets,
+                           table_num_to_companion_set);
+      break;
     case RelationalExpression::MULTI_INNER_JOIN:
       assert(false);
   }
@@ -581,6 +593,15 @@ string PrintRelationalExpression(RelationalExpression *expr, int level) {
       break;
     case RelationalExpression::ANTIJOIN:
       result += "* Antijoin";
+      break;
+    case RelationalExpression::RIGHT_JOIN:
+      result += "* Right join";
+      break;
+    case RelationalExpression::RIGHT_SEMI:
+      result += "* Right Semijoin";
+      break;
+    case RelationalExpression::RIGHT_ANTI:
+      result += "* Right Antijoin";
       break;
     case RelationalExpression::FULL_OUTER_JOIN:
       result += "* Full outer join";
@@ -1981,6 +2002,12 @@ table_map FindNullGuaranteedTables(const RelationalExpression *expr) {
         return expr->right->tables_in_subtree;
       case RelationalExpression::ANTIJOIN:
         return FindNullGuaranteedTables(expr->left);
+      case RelationalExpression::RIGHT_SEMI:
+        return expr->tables_in_subtree;
+      case RelationalExpression::RIGHT_JOIN:
+        return expr->left->tables_in_subtree;
+      case RelationalExpression::RIGHT_ANTI:
+        return FindNullGuaranteedTables(expr->right);
       case RelationalExpression::TABLE:
       case RelationalExpression::MULTI_INNER_JOIN:
         assert(false);
@@ -3255,6 +3282,7 @@ table_map GetTablesInnerToOuterJoinOrAntiJoin(
   switch (expr->type) {
     case RelationalExpression::INNER_JOIN:
     case RelationalExpression::SEMIJOIN:
+    case RelationalExpression::RIGHT_SEMI:
     case RelationalExpression::STRAIGHT_INNER_JOIN:
       return GetTablesInnerToOuterJoinOrAntiJoin(expr->left) |
              GetTablesInnerToOuterJoinOrAntiJoin(expr->right);
@@ -3262,6 +3290,10 @@ table_map GetTablesInnerToOuterJoinOrAntiJoin(
     case RelationalExpression::ANTIJOIN:
       return GetTablesInnerToOuterJoinOrAntiJoin(expr->left) |
              expr->right->tables_in_subtree;
+    case RelationalExpression::RIGHT_JOIN:
+    case RelationalExpression::RIGHT_ANTI:
+      return GetTablesInnerToOuterJoinOrAntiJoin(expr->right) |
+             expr->left->tables_in_subtree;
     case RelationalExpression::FULL_OUTER_JOIN:
       return expr->tables_in_subtree;
     case RelationalExpression::MULTI_INNER_JOIN:
@@ -3554,9 +3586,15 @@ table_map GetVisibleTables(const RelationalExpression *expr) {
       // Inner side of a semijoin or an antijoin should not
       // be visible outside of the join.
       return GetVisibleTables(expr->left);
+    case RelationalExpression::RIGHT_SEMI:
+    case RelationalExpression::RIGHT_ANTI:
+      // Inner side of a semijoin or an antijoin should not
+      // be visible outside of the join.
+      return GetVisibleTables(expr->right);
     case RelationalExpression::INNER_JOIN:
     case RelationalExpression::STRAIGHT_INNER_JOIN:
     case RelationalExpression::LEFT_JOIN:
+    case RelationalExpression::RIGHT_JOIN:
     case RelationalExpression::FULL_OUTER_JOIN:
       return GetVisibleTables(expr->left) | GetVisibleTables(expr->right);
     case RelationalExpression::MULTI_INNER_JOIN:

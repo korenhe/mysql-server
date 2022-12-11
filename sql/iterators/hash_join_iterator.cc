@@ -42,6 +42,7 @@
 #include "sql/item_cmpfunc.h"
 #include "sql/iterators/hash_join_buffer.h"
 #include "sql/iterators/row_iterator.h"
+#include "sql/join_type.h"
 #include "sql/pfs_batch_mode.h"
 #include "sql/sql_class.h"
 #include "sql/sql_list.h"
@@ -1031,16 +1032,19 @@ int HashJoinIterator::ReadNextJoinedRowFromHashTable() {
   // We have a matching row ready.
   switch (m_join_type) {
     case JoinType::SEMI:
+    case JoinType::RIGHTSEMI:
       // Semijoin should return the first matching row, and then go to the next
       // row from the probe input.
       SetReadingProbeRowState();
       break;
     case JoinType::ANTI:
+    case JoinType::RIGHTANTI:
       // Antijoin should immediately go to the next row from the probe input,
       // without returning the matching row.
       SetReadingProbeRowState();
       return -1;  // Read the next row.
     case JoinType::OUTER:
+    case JoinType::RIGHT:
     case JoinType::INNER:
       // Inner join should return all matching rows from the hash table before
       // moving to the next row from the probe input.

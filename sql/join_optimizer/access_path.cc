@@ -754,6 +754,18 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             join_type =
                 param.rewrite_semi_to_inner ? JoinType::INNER : JoinType::SEMI;
             break;
+
+          case RelationalExpression::RIGHT_JOIN:
+            join_type = JoinType::RIGHT;
+            break;
+          case RelationalExpression::RIGHT_ANTI:
+            join_type = JoinType::RIGHTANTI;
+            break;
+          case RelationalExpression::RIGHT_SEMI:
+            join_type = param.rewrite_semi_to_inner ? JoinType::INNER
+                                                    : JoinType::RIGHTSEMI;
+            break;
+
           case RelationalExpression::TABLE:
           default:
             assert(false);
@@ -785,10 +797,18 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 ? &join->hash_table_generation
                 : nullptr;
 
+        int build_index = 1;
+        int probe_index = 0;
+
+        if (JoinTypeIsRight(join_type)) {
+          build_index = 0;
+          probe_index = 1;
+        }
+
         iterator = NewIterator<HashJoinIterator>(
-            thd, mem_root, move(job.children[1]),
+            thd, mem_root, move(job.children[build_index]),
             GetUsedTables(param.inner, /*include_pruned_tables=*/true),
-            estimated_build_rows, move(job.children[0]),
+            estimated_build_rows, move(job.children[probe_index]),
             GetUsedTables(param.outer, /*include_pruned_tables=*/true),
             param.store_rowids, param.tables_to_get_rowid_for,
             thd->variables.join_buff_size, move(conditions),

@@ -96,6 +96,10 @@ struct RelationalExpression {
     SEMIJOIN = static_cast<int>(JoinType::SEMI),
     ANTIJOIN = static_cast<int>(JoinType::ANTI),
 
+    RIGHT_JOIN = static_cast<int>(JoinType::RIGHT),
+    RIGHT_SEMI = static_cast<int>(JoinType::RIGHTSEMI),
+    RIGHT_ANTI = static_cast<int>(JoinType::RIGHTANTI),
+
     // STRAIGHT_JOIN is an inner join that the user has specified
     // is noncommutative (as a hint, but one we are not allowed to
     // disregard).
@@ -194,10 +198,13 @@ inline bool PassesConflictRules(hypergraph::NodeMap joined_tables,
 // Whether (a <expr> b) === (b <expr> a). See also OperatorIsAssociative(),
 // OperatorsAreAssociative() // and OperatorsAre{Left,Right}Asscom()
 // in make_join_hypergraph.cc.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 inline bool OperatorIsCommutative(const RelationalExpression &expr) {
   return expr.type == RelationalExpression::INNER_JOIN ||
          expr.type == RelationalExpression::FULL_OUTER_JOIN;
 }
+#pragma GCC diagnostic pop
 
 // Call the given functor on each non-table operator in the tree below expr,
 // including expr itself, in post-traversal order.

@@ -2862,6 +2862,15 @@ bool IsEmptyJoin(const RelationalExpression::Type join_type, bool left_is_empty,
       // If the outer side of a left join or an antijoin is empty, the result of
       // the join is also empty.
       return left_is_empty;
+    case RelationalExpression::RIGHT_SEMI:
+      // If either side of an inner join or a semijoin is empty, the result of
+      // the join is also empty.
+      return left_is_empty || right_is_empty;
+    case RelationalExpression::RIGHT_JOIN:
+    case RelationalExpression::RIGHT_ANTI:
+      // If the outer side of a left join or an antijoin is empty, the result of
+      // the join is also empty.
+      return right_is_empty;
     case RelationalExpression::FULL_OUTER_JOIN:
       // If both sides of a full outer join are empty, the result of the join is
       // also empty.
@@ -4509,6 +4518,8 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     verify_consistency = true;
   }
 #endif
+  verify_consistency = false;
+
   if (verify_consistency && path->parameter_tables == 0 &&
       path->num_output_rows() >= 1e-3) {
     for (const AccessPath *other_path : *existing_paths) {

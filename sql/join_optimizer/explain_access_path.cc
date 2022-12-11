@@ -178,6 +178,12 @@ string JoinTypeToString(JoinType join_type) {
       return "antijoin";
     case JoinType::SEMI:
       return "semijoin";
+    case JoinType::RIGHT:
+      return "right join";
+    case JoinType::RIGHTANTI:
+      return "right antijoin";
+    case JoinType::RIGHTSEMI:
+      return "right semijoin";
     default:
       assert(false);
       return "<error>";
@@ -204,6 +210,18 @@ string HashJoinTypeToString(RelationalExpression::Type join_type,
       if (explain_json_value)
         *explain_json_value = JoinTypeToString(JoinType::SEMI);
       return "Hash semijoin";
+    case RelationalExpression::RIGHT_JOIN:
+      if (explain_json_value)
+        *explain_json_value = JoinTypeToString(JoinType::RIGHT);
+      return "Right hash join";
+    case RelationalExpression::RIGHT_ANTI:
+      if (explain_json_value)
+        *explain_json_value = JoinTypeToString(JoinType::RIGHTANTI);
+      return "Hash right antijoin";
+    case RelationalExpression::RIGHT_SEMI:
+      if (explain_json_value)
+        *explain_json_value = JoinTypeToString(JoinType::RIGHTSEMI);
+      return "Hash right semijoin";
     default:
       assert(false);
       return "<error>";

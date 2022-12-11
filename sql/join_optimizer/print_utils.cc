@@ -84,6 +84,15 @@ std::string GenerateExpressionLabel(const RelationalExpression *expr) {
     case RelationalExpression::ANTIJOIN:
       label = "[anti] " + label;
       break;
+    case RelationalExpression::RIGHT_JOIN:
+      label = "[right] " + label;
+      break;
+    case RelationalExpression::RIGHT_SEMI:
+      label = "[right semi] " + label;
+      break;
+    case RelationalExpression::RIGHT_ANTI:
+      label = "[right anti] " + label;
+      break;
     case RelationalExpression::FULL_OUTER_JOIN:
       label = "[full] " + label;
       break;
