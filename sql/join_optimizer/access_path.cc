@@ -717,7 +717,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         break;
       }
       case AccessPath::HASH_JOIN: {
-        const auto &param = path->hash_join();
+        auto &param = path->hash_join();
         if (job.children.is_null()) {
           SetupJobsForChildren(mem_root, param.outer, param.inner, join,
                                /*inner_eligible_for_batch_mode=*/true, &job,
@@ -732,6 +732,8 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         const bool probe_input_batch_mode =
             eligible_for_batch_mode && ShouldEnableBatchMode(param.outer);
         double estimated_build_rows = param.inner->num_output_rows();
+        double estimated_probe_rows = param.outer->num_output_rows();
+
         if (param.inner->num_output_rows() < 0.0) {
           // Not all access paths may propagate their costs properly.
           // Choose a fairly safe estimate (it's better to be too large
@@ -770,6 +772,22 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           default:
             assert(false);
         }
+
+        if (join_type == JoinType::SEMI or join_type == JoinType::ANTI or
+            join_type == JoinType::OUTER) {
+          if (estimated_build_rows > estimated_probe_rows) {
+            if (join_type == JoinType::SEMI) {
+              join_type = JoinType::RIGHTSEMI;
+              join_predicate->expr->type = RelationalExpression::RIGHT_SEMI;
+            } else if (join_type == JoinType::ANTI) {
+              join_type = JoinType::RIGHTANTI;
+              join_predicate->expr->type = RelationalExpression::RIGHT_ANTI;
+            } else if (join_type == JoinType::OUTER) {
+              join_type = JoinType::RIGHT;
+              join_predicate->expr->type = RelationalExpression::RIGHT_JOIN;
+            }
+          }
+        }
         // See if we can allow the hash table to keep its contents across Init()
         // calls.
         //
@@ -799,10 +817,21 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
 
         int build_index = 1;
         int probe_index = 0;
+        auto *tmp_inner = param.inner;
+        auto *tmp_outer = param.outer;
 
         if (JoinTypeIsRight(join_type)) {
+          // swap all params
+
           build_index = 0;
           probe_index = 1;
+
+          auto store_build_rows = estimated_build_rows;
+          estimated_build_rows = estimated_probe_rows;
+          estimated_probe_rows = store_build_rows;
+
+          param.outer = tmp_inner;
+          param.inner = tmp_outer;
         }
 
         iterator = NewIterator<HashJoinIterator>(
