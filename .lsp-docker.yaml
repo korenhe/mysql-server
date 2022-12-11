@@ -1,0 +1,12 @@
+lsp:
+  server:
+    type: docker
+    subtype: image
+    name: mysql.image  # customized image name
+    container-name: mysql-container
+    docker-server-id: my-clangd-docker-1
+    server: clangd # Server id of a registered server (by lsp-mode)
+    launch_command: "clangd-14 --compile-commands-dir=/workspace/lsp-mysql/build" # Launch command of the language server
+  mappings:
+    - source: "/home/koren/repo/mysql-server"
+      destination: "/workspace/lsp-mysql"
