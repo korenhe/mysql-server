@@ -1,3 +1,3 @@
 ((c++-mode . (
-              (lsp-enabled-clients . (home-koren-repo-mysql-server-clangd-docker))
+              (lsp-enabled-clients . (Users-korenhe-repo-mysql-server-clangd-docker))
               )))
