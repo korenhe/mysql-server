@@ -38,6 +38,7 @@
 #include "my_sys.h"
 #include "mysql/components/services/bits/psi_bits.h"
 #include "mysqld_error.h"
+#include "sql/immutable_string.h"
 #include "sql/item.h"
 #include "sql/item_cmpfunc.h"
 #include "sql/iterators/hash_join_buffer.h"
@@ -261,7 +262,29 @@ bool HashJoinIterator::Init() {
     return false;
   }
 
-  return InitProbeIterator();
+  if (m_join_type == JoinType::RIGHTSEMI or
+      m_join_type == JoinType::RIGHTANTI) {
+    InitProbeIterator();
+
+    while (m_state != State::END_OF_ROWS) {
+      int res = Read();
+
+      if (res == -1) {
+        break;
+      }
+
+      m_row_buffer.select(m_current_key);
+    }
+
+    m_state = State::READING_FROM_HASH_TABLE;
+    m_semiflag = m_join_type == JoinType::RIGHTSEMI ? 1 : 2;
+    m_next_row_it = m_row_buffer.begin_mutable();
+    m_current_row = LinkedImmutableString{nullptr};
+    return false;
+  } else {
+    m_semiflag = 0;
+    return InitProbeIterator();
+  }
 }
 
 // Construct a join key from a list of join conditions, where the join key from
@@ -857,7 +880,7 @@ void HashJoinIterator::LookupProbeRowInHashTable() {
     if (m_row_buffer.empty()) {
       m_current_row = LinkedImmutableString{nullptr};
     } else {
-      m_current_row = m_row_buffer.begin()->second;
+      m_current_row = m_row_buffer.begin()->second.link_string;
     }
     m_state = State::READING_FIRST_ROW_FROM_HASH_TABLE;
     return;
@@ -889,7 +912,8 @@ void HashJoinIterator::LookupProbeRowInHashTable() {
   if (it == m_row_buffer.end()) {
     m_current_row = LinkedImmutableString{nullptr};
   } else {
-    m_current_row = it->second;
+    m_current_row = it->second.link_string;
+    m_current_key = key;
   }
 
   m_state = State::READING_FIRST_ROW_FROM_HASH_TABLE;
@@ -1032,13 +1056,17 @@ int HashJoinIterator::ReadNextJoinedRowFromHashTable() {
   // We have a matching row ready.
   switch (m_join_type) {
     case JoinType::SEMI:
+      SetReadingProbeRowState();
+      break;
     case JoinType::RIGHTSEMI:
+    case JoinType::RIGHTANTI:
+
+      m_probe_input->SetNullRowFlag(true);
       // Semijoin should return the first matching row, and then go to the next
       // row from the probe input.
       SetReadingProbeRowState();
       break;
     case JoinType::ANTI:
-    case JoinType::RIGHTANTI:
       // Antijoin should immediately go to the next row from the probe input,
       // without returning the matching row.
       SetReadingProbeRowState();
@@ -1055,6 +1083,34 @@ int HashJoinIterator::ReadNextJoinedRowFromHashTable() {
   }
 
   m_current_row = m_current_row.Decode().next;
+  return 0;
+}
+
+int HashJoinIterator::ReadNextSelectedRowFromHashTable(int semiflag) {
+  while (m_current_row == nullptr) {
+    if (m_next_row_it == m_row_buffer.end()) return -1;
+
+    bool select = m_next_row_it->second.selected;
+    if (semiflag == 2) {
+      select = not select;
+    }
+    if (select) {
+      m_current_row = m_next_row_it->second.link_string;
+    }
+    m_next_row_it++;
+  }
+
+  assert(m_current_row != nullptr);
+
+  LoadImmutableStringIntoTableBuffers(m_build_input_tables, m_current_row);
+
+  // TODO: always use build side(hash table side) for join condition, currently
+  // the upper nodes may use the probe side since we flip sides afterwards
+#if 1
+  LoadImmutableStringIntoTableBuffers(m_probe_input_tables, m_current_row);
+#endif
+  m_current_row = m_current_row.Decode().next;
+
   return 0;
 }
 
@@ -1088,21 +1144,41 @@ int HashJoinIterator::Read() {
         break;
       case State::READING_FIRST_ROW_FROM_HASH_TABLE:
       case State::READING_FROM_HASH_TABLE: {
-        const int res = ReadNextJoinedRowFromHashTable();
-        if (res == 0) {
-          // A joined row is ready, so send it to the client.
-          return 0;
-        }
+        if (m_semiflag == 0) {
+          const int res = ReadNextJoinedRowFromHashTable();
+          if (res == 0) {
+            // A joined row is ready, so send it to the client.
+            return 0;
+          }
 
-        if (res == -1) {
-          // No more matching rows in the hash table, or antijoin found a
-          // matching row. Read a new row from the probe input.
-          continue;
-        }
+          if (res == -1) {
+            // No more matching rows in the hash table, or antijoin found a
+            // matching row. Read a new row from the probe input.
+            continue;
+          }
 
-        // An error occurred, so abort the join.
-        assert(res == 1);
-        return res;
+          // An error occurred, so abort the join.
+          assert(res == 1);
+          return res;
+        } else if (m_semiflag < 0) {
+          const int res = ReadNextJoinedRowFromHashTable();
+          return res;
+        } else {
+          const int res = ReadNextSelectedRowFromHashTable(m_semiflag);
+          if (res == 0) {
+            // A joined row is ready, so send it to the client.
+            return 0;
+          }
+
+          if (res == -1) {
+            m_state = State::END_OF_ROWS;
+            continue;
+          }
+
+          // An error occurred, so abort the join.
+          assert(res == 1);
+          return res;
+        }
       }
       case State::END_OF_ROWS:
         return -1;

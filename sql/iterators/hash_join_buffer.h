@@ -158,6 +158,17 @@ void LoadImmutableStringIntoTableBuffers(
 
 enum class StoreRowResult { ROW_STORED, BUFFER_FULL, FATAL_ERROR };
 
+class MyBuildStruct {
+ public:
+  LinkedImmutableString link_string{nullptr};
+  bool selected = false;
+
+  MyBuildStruct(LinkedImmutableString ls, bool sel = false) {
+    link_string = ls;
+    selected = sel;
+  }
+};
+
 class HashJoinRowBuffer {
  public:
   // Construct the buffer. Note that Init() must be called before the buffer can
@@ -195,14 +206,18 @@ class HashJoinRowBuffer {
 
   bool inited() const { return m_hash_map != nullptr; }
 
-  using hash_map_type = robin_hood::unordered_flat_map<
-      ImmutableStringWithLength, LinkedImmutableString, KeyHasher, KeyEquals>;
+  using hash_map_type =
+      robin_hood::unordered_flat_map<ImmutableStringWithLength, MyBuildStruct,
+                                     KeyHasher, KeyEquals>;
 
   using hash_map_iterator = hash_map_type::const_iterator;
+  using hash_map_iterator_mutable = hash_map_type::iterator;
 
   hash_map_iterator find(const Key &key) const { return m_hash_map->find(key); }
 
   hash_map_iterator begin() const { return m_hash_map->begin(); }
+
+  hash_map_iterator_mutable begin_mutable() { return m_hash_map->begin(); }
 
   hash_map_iterator end() const { return m_hash_map->end(); }
 
@@ -214,6 +229,50 @@ class HashJoinRowBuffer {
   bool Initialized() const { return m_hash_map.get() != nullptr; }
 
   bool contains(const Key &key) const { return find(key) != end(); }
+
+  void select(const Key &key) {
+    auto it = m_hash_map->find(key);
+    it->second.selected = true;
+
+#if 0
+    auto row = it->second.link_string;
+    int idx = 0;
+    while (row != nullptr) {
+      row = row.Decode().next;
+      idx++;
+    }
+
+    m_selection_map[it->first] = idx;
+#endif
+  }
+
+#if 0
+  size_t select_size() {
+    size_t result = 0;
+    for (const auto &pair : m_selection_map) {
+      result += pair.second;
+    }
+
+    size_t result2 = 0;
+    for (auto it = this->begin_mutable(); it != this->end(); it++) {
+      auto first = it->first;
+      auto second = it->second;
+
+      if (second.selected) {
+        auto row = m_hash_map->find(first)->second.link_string;
+
+        while (row != nullptr) {
+          row = row.Decode().next;
+          result2++;
+        }
+      }
+    }
+
+    assert(result == result2);
+
+    return result;
+  }
+#endif
 
  private:
   const std::vector<HashJoinCondition> m_join_conditions;
@@ -236,6 +295,11 @@ class HashJoinRowBuffer {
 
   // The hash table where the rows are stored.
   std::unique_ptr<hash_map_type> m_hash_map;
+
+#if 0
+  std::unordered_map<ImmutableStringWithLength, int, KeyHasher, KeyEquals>
+      m_selection_map;
+#endif
 
   // A buffer we can use when we are constructing a join key from a join
   // condition. In order to avoid reallocating memory, the buffer never shrinks.

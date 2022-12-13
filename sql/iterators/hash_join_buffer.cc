@@ -243,11 +243,11 @@ StoreRowResult HashJoinRowBuffer::StoreRow(
     // We already have another element with the same key, so our insert
     // failed, Put the new value in the hash bucket, but keep track of
     // what the old one was; it will be our “next” pointer.
-    next_ptr = key_it_and_inserted.first->second;
+    next_ptr = key_it_and_inserted.first->second.link_string;
   }
 
   // Save the contents of all columns marked for reading.
-  m_last_row_stored = key_it_and_inserted.first->second =
+  m_last_row_stored = key_it_and_inserted.first->second.link_string =
       StoreLinkedImmutableStringFromTableBuffers(next_ptr, &full);
   if (m_last_row_stored == nullptr) {
     return StoreRowResult::FATAL_ERROR;

@@ -475,6 +475,8 @@ class HashJoinIterator final : public RowIterator {
   /// @retval 1 An error occurred.
   int ReadNextJoinedRowFromHashTable();
 
+  int ReadNextSelectedRowFromHashTable(int semiflag);
+
   enum class State {
     // We are reading a row from the probe input, where the row comes from
     // the iterator.
@@ -498,6 +500,7 @@ class HashJoinIterator final : public RowIterator {
   };
 
   State m_state;
+  int m_semiflag = 0;
   uint64_t *m_hash_table_generation;
   uint64_t m_last_hash_table_generation;
 
@@ -509,6 +512,8 @@ class HashJoinIterator final : public RowIterator {
   // for LinkedImmutableString), so this allows iterating through the rows
   // until the end.
   LinkedImmutableString m_current_row{nullptr};
+  hash_join_buffer::HashJoinRowBuffer::hash_map_iterator_mutable m_next_row_it;
+  hash_join_buffer::Key m_current_key;
 
   // These structures holds the tables and columns that are needed for the hash
   // join. Rows/columns that are not needed are filtered out in the constructor.
