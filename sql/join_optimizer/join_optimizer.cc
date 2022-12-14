@@ -3307,7 +3307,7 @@ void CostingReceiver::ProposeHashJoin(
   join_path.hash_join().store_rowids = false;
   join_path.hash_join().rewrite_semi_to_inner = rewrite_semi_to_inner;
   join_path.hash_join().tables_to_get_rowid_for = 0;
-  join_path.hash_join().allow_spill_to_disk = true;
+  join_path.hash_join().allow_spill_to_disk = false;
 
   // The rows from the inner side of a hash join come in different order from
   // that of the underlying scan, so we need to store row IDs for any

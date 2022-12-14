@@ -2119,7 +2119,8 @@ static AccessPath *CreateHashJoinAccessPath(
   // and that is if we either have grouping or sorting in the query. In
   // those cases, the iterator above us will most likely consume the
   // entire result set anyways.
-  const bool allow_spill_to_disk = !has_limit || has_grouping || has_order_by;
+  const bool allow_spill_to_disk =
+      false and (!has_limit || has_grouping || has_order_by);
 
   RelationalExpression *expr = new (thd->mem_root) RelationalExpression(thd);
   expr->left = expr->right =

@@ -582,7 +582,7 @@ class HashJoinIterator final : public RowIterator {
   bool m_probe_input_batch_mode{false};
 
   // Whether we are allowed to spill to disk.
-  bool m_allow_spill_to_disk{true};
+  bool m_allow_spill_to_disk{false};
 
   // Whether the build iterator has more rows. This is used to stop the hash
   // join iterator asking for more rows when we know for sure that the entire
