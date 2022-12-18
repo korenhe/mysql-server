@@ -19,3 +19,9 @@ RUN DEBIAN_FRONTEND=noninteractive && \
 RUN DEBIAN_FRONTEND=noninteractive && \
     apt-get install -y \
     mysql-client
+
+RUN DEBIAN_FRONTEND=noninteractive && \
+    apt-get install -y \
+    linux-tools-generic
+
+RUN rm /usr/bin/perf && ln -s /usr/lib/linux-tools/5.15.0-56-generic/perf /usr/bin/perf
